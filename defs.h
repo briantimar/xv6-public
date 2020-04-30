@@ -53,6 +53,11 @@ int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
 
+//globalstate.c
+void init_numread(void);
+void increment_numread(void);
+int get_numread(void);
+
 // ide.c
 void            ideinit(void);
 void            ideintr(void);

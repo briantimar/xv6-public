@@ -7,7 +7,7 @@
 #include "mmu.h"
 #include "proc.h"
 
-extern int numRead;
+
 
 int
 sys_fork(void)
@@ -46,7 +46,7 @@ sys_getpid(void)
 
 int sys_getreadcount(void)
 { 
-  return numRead;
+  return get_numread();
 }
 
 int

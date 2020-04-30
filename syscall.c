@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "syscall.h"
 
+
 // User code makes a system call with INT T_SYSCALL.
 // System call number in %eax.
 // Arguments on the stack, from the user call to the C
@@ -130,8 +131,6 @@ static int (*syscalls[])(void) = {
 [SYS_getreadcount] sys_getreadcount
 };
 
-// number of calls made to read() - from any process.
-int numRead = 0;
 
 void
 syscall(void)
@@ -143,7 +142,7 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Here we know the syscall number is valid
     if (num == SYS_read) {
-      numRead++;
+      increment_numread();
     }
     curproc->tf->eax = syscalls[num]();
   } else {
