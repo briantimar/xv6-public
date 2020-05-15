@@ -89,3 +89,24 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// sets number of lottery tickets for current process
+int
+sys_settickets(void)
+{
+  int numtickets;
+  if ((argint(0, &numtickets) < 0) || numtickets < 1) {
+    return -1;
+  }
+  struct proc* p = myproc();
+  p->ticketnumber = numtickets;
+  return 0;
+
+}
+
+// get number of lottery tickets for current process
+int 
+sys_gettickets(void)
+{ 
+  return myproc()->ticketnumber;
+}
