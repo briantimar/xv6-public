@@ -1,0 +1,9 @@
+echo "now running the pre script"
+cp ticket/test_ticket_1.c ../test_ticket_1.c
+cd ..
+sh tester/xv6-edit-makefile.sh Makefile test_ticket_1 > Makefile.test
+make -f Makefile.test clean
+make -f Makefile.test xv6.img
+make -f Makefile.test fs.img
+cd tests
+echo "pre complete"

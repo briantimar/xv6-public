@@ -1,0 +1,1 @@
+../tester/run-tests.sh -v -d ticket -o ticket-out

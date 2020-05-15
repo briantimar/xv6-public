@@ -1,0 +1,1 @@
+cd .. ; ./tester/run-xv6-command.exp CPUS=1 Makefile.test test_ticket_1 | grep TEST; cd tests
