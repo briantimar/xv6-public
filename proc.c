@@ -7,10 +7,12 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
+
 
 static struct proc *initproc;
 
@@ -78,10 +80,10 @@ allocproc(void)
 
   acquire(&ptable.lock);
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->state == UNUSED)
       goto found;
-
+  }
   release(&ptable.lock);
   return 0;
 
@@ -112,6 +114,8 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // Set up initial process status
+  p->ticketnumber = 1;
   return p;
 }
 
@@ -209,6 +213,9 @@ fork(void)
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  // copy ticket count from parent
+  // only other party that modifies count is parent proc of this call
+  np->ticketnumber = curproc->ticketnumber;
 
   pid = np->pid;
 
