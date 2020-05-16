@@ -41,7 +41,7 @@ print_error_message () {
     local testnum=$1
     local contrunning=$2
     local filetype=$3
-    builtin echo -e "\e[31mtest $testnum: $filetype incorrect\e[0m"
+    echo "test $testnum: $filetype incorrect"
     echo "  what results should be found in file: $testdir/$testnum.$filetype"
     echo "  what results produced by your program: tests-out/$testnum.$filetype"
     echo "  compare the two using diff, cmp, or related tools to debug, e.g.:"
