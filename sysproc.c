@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "pstat.h"
 
 int
 sys_fork(void)
@@ -109,4 +110,21 @@ int
 sys_gettickets(void)
 { 
   return myproc()->ticketnumber;
+}
+
+// populate a process stat table with current proc info
+int 
+sys_getpstat(void)
+{ 
+  struct pstat *ps;
+  
+  // check that the user's pointer is within bounds, and if so copy the result
+  // into our ps.
+  if (argptr(0, (char**)&ps, sizeof( struct pstat)) < 0) {
+    return -1;
+  }
+
+  // ask proc.c routine to fill in all process data
+  writepstat(ps);
+  return 0;
 }

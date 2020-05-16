@@ -9,6 +9,6 @@ struct pstat {
     int tickets[NPROC]; // number of tickets assigned to a given process
     int pid[NPROC]; // pid's
     int ticks[NPROC]; // number of clock ticks each process has accumulated.
-}
+};
 
 #endif // _PSTAT_H_

@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
 
 
 struct {
@@ -538,4 +539,21 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// populate a process-status table
+void writepstat(struct pstat *ps) {
+  int i;
+  struct proc * p;
+  acquire(&ptable.lock);
+  for (i=0; i<NPROC; i++) {
+    p = &ptable.proc[i];
+    ps->pid[i] = p->pid;
+    ps->tickets[i] = p->ticketnumber;
+    ps->inuse[i] = p->state == RUNNING ? 1 : 0;
+    // not implemented
+    ps->ticks[i] = -1;
+  }
+  release(&ptable.lock);
+
 }
