@@ -1,1 +1,0 @@
-Check that processes can set and read process numbers, and that children inherit from parents.
