@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "pstat.h"
+#include "random.h"
 
 
 struct {
@@ -154,7 +155,6 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
   release(&ptable.lock);
 }
 
@@ -334,30 +334,60 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
   
+  int i;
+  int weights[NPROC];
+  int ticketcount;
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
+    ticketcount = 0;
+
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    // LOTTERY PROCESS SELECTION
+    // collect ticket weights for all processes
+    for (i=0; i<NPROC; i++) {
+      if (ptable.proc[i].state != RUNNABLE) {
+        weights[i] = 0;
+      }
+      else {
+        weights[i] = ptable.proc[i].ticketnumber;
+        ticketcount += weights[i];
+      }
     }
+
+    // no processes, nothing to do
+    if (ticketcount==0) {
+      release(&ptable.lock);
+      continue;
+    }
+    
+    // sample one randomly according to its weight.
+    i = sampleindex(weights, NPROC);
+    p = &(ptable.proc[i]);
+
+        // LINEAR PROCESS SCAN
+        // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        // if(p->state != RUNNABLE)
+        // continue;
+
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    // }
+
+
     release(&ptable.lock);
 
   }
