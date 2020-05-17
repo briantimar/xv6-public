@@ -364,7 +364,9 @@ scheduler(void)
     }
     
     // sample one randomly according to its weight.
-    i = sampleindex(weights, NPROC);
+    if ((i =sampleindex(weights, NPROC)) < 0) {
+      panic("invalid proc index");
+    }
     p = &(ptable.proc[i]);
 
         // LINEAR PROCESS SCAN
