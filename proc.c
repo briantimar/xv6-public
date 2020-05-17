@@ -550,7 +550,7 @@ void writepstat(struct pstat *ps) {
     p = &ptable.proc[i];
     ps->pid[i] = p->pid;
     ps->tickets[i] = p->ticketnumber;
-    ps->inuse[i] = p->state == RUNNING ? 1 : 0;
+    ps->inuse[i] = p->state >0 ? 1 : 0;
     // not implemented
     ps->ticks[i] = -1;
   }
