@@ -615,6 +615,7 @@ void writepstat(struct pstat *ps) {
     ps->tickets[i] = p->ticketnumber;
     ps->ticks[i] = p->ticks;
     ps->state[i] = p->state;
+    ps->pages[i] = p->sz / PGSIZE;
     safestrcpy(ps->name[i], p->name, 16);
   }
   release(&ptable.lock);
