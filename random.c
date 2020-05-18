@@ -10,6 +10,7 @@ static uint m = 0xffffffff;
 // sample a random integer in the range 0..< 2^32
 // using LCG params from https://en.wikipedia.org/wiki/Linear_congruential_generator
 
+// TODO using the value of the modulus leads to undefined behavior!
 uint
 rand(void)
 {
