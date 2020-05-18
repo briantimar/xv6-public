@@ -5,10 +5,11 @@
 #include "param.h"
 
 struct pstat {
-    int inuse[NPROC]; // whether the corresponding proctable slot is in use (0 or 1)
     int tickets[NPROC]; // number of tickets assigned to a given process
     int pid[NPROC]; // pid's
     int ticks[NPROC]; // number of clock ticks each process has accumulated.
+    int state[NPROC]; // current state of each process
+    char name[NPROC][16]; // process name
 };
 
 #endif // _PSTAT_H_

@@ -9,6 +9,28 @@
 #include "pstat.h"
 #include "random.h"
 
+// number of scheduler cycles over which to accumulate history of proc selection
+#define TICK_WINDOW_SIZE 1000
+// rolling history of proc number selections
+static int procselections[TICK_WINDOW_SIZE];
+
+static void init_procselections(void){
+  int i;
+  for (i=0; i < TICK_WINDOW_SIZE; i++) {
+    procselections[i] = -1;
+  }
+}
+
+// update the process history with the latest index selected
+// returns: index of the oldes process selection, to be discarded.
+static int update_procselections(int procindex) {
+  int oldest = procselections[0];
+  for (int i=0; i < TICK_WINDOW_SIZE-1; i++) {
+    procselections[i] = procselections[i+1];
+  }
+  procselections[TICK_WINDOW_SIZE-1] = procindex;
+  return oldest;
+}
 
 struct {
   struct spinlock lock;
@@ -128,6 +150,9 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
+
+  // at this point no procs have been assigned, ok to set up here
+  init_procselections();
 
   p = allocproc();
   
@@ -337,6 +362,8 @@ scheduler(void)
   int i;
   int weights[NPROC];
   int ticketcount;
+  int oldindex;
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -368,6 +395,11 @@ scheduler(void)
       panic("invalid proc index");
     }
     p = &(ptable.proc[i]);
+
+    // update the process histories
+    p->ticks +=1;
+    oldindex = update_procselections(i);
+    ptable.proc[oldindex].ticks -= 1;
 
         // LINEAR PROCESS SCAN
         // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -582,9 +614,9 @@ void writepstat(struct pstat *ps) {
     p = &ptable.proc[i];
     ps->pid[i] = p->pid;
     ps->tickets[i] = p->ticketnumber;
-    ps->inuse[i] = p->state >0 ? 1 : 0;
-    // not implemented
-    ps->ticks[i] = -1;
+    ps->ticks[i] = p->ticks;
+    ps->state[i] = p->state;
+    safestrcpy(ps->name[i], p->name, 16);
   }
   release(&ptable.lock);
 
