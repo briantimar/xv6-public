@@ -17,14 +17,14 @@ void showps(struct pstat* ps) {
          }
         for (i=0; i<NPROC; i++) {
             if (ps->state[i] > 0) {
-                printf(1, "%d | %s | %d | %d | %d \n", ps->pid[i],
+                printf(1, "%d | %s | %d | %d | %d / %d \n", ps->pid[i],
                                                     ps->name[i], 
                                                     ps->state[i],
                                                         ps->tickets[i], 
-                                                        ps->ticks[i]);
+                                                        ps->ticks[i], 
+                                                        TICK_WINDOW_SIZE);
             }
         }
-   
 }
 
 int main(int argc, char* argv[]) {

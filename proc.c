@@ -9,8 +9,7 @@
 #include "pstat.h"
 #include "random.h"
 
-// number of scheduler cycles over which to accumulate history of proc selection
-#define TICK_WINDOW_SIZE 1000
+
 // rolling history of proc number selections
 static int procselections[TICK_WINDOW_SIZE];
 
