@@ -40,10 +40,13 @@ exec(char *path, char **argv)
     goto bad;
 
   // Add guard page against null pointers
-  if ((sz = allocuvm(pgdir, 0, PGSIZE)) == 0) {
-    goto bad;
-  }
-  clearpteu(pgdir, (char*) 0);
+  // if ((sz = allocuvm(pgdir, 0, PGSIZE)) == 0) {
+  //   goto bad;
+  // }
+  // clearpteu(pgdir, (char*) 0);
+  
+  // skip allocating the initial page
+  sz = PGSIZE;
 
   // elf.phoff is pointer to array of program header structs, one for each segment
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
@@ -109,6 +112,8 @@ exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
+
+  
   return 0;
 
  bad:

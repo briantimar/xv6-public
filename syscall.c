@@ -18,8 +18,9 @@ int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
-
-  if(addr >= curproc->sz || addr+4 > curproc->sz)
+  // base of the user address space; 
+  uint base = (curproc == initproc) ? 0 : PGSIZE;
+  if(addr >= curproc->sz || addr+4 > curproc->sz || addr < base )
     return -1;
   *ip = *(int*)(addr);
   return 0;
@@ -34,7 +35,8 @@ fetchstr(uint addr, char **pp)
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz)
+  uint base = (curproc == initproc) ? 0 : PGSIZE;
+  if(addr >= curproc->sz || addr < base)
     return -1;
   *pp = (char*)addr;
   ep = (char*)curproc->sz;

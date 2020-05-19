@@ -37,7 +37,7 @@ struct {
 } ptable;
 
 
-static struct proc *initproc;
+struct proc *initproc;
 
 int nextpid = 1;
 extern void forkret(void);
@@ -218,7 +218,6 @@ fork(void)
     return -1;
   }
 
-  // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
@@ -615,7 +614,8 @@ void writepstat(struct pstat *ps) {
     ps->tickets[i] = p->ticketnumber;
     ps->ticks[i] = p->ticks;
     ps->state[i] = p->state;
-    ps->pages[i] = p->sz / PGSIZE;
+    // minus one for the first virtual page, not mapped
+    ps->pages[i] = (p->sz - 1) / PGSIZE;
     safestrcpy(ps->name[i], p->name, 16);
   }
   release(&ptable.lock);
