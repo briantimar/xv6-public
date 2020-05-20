@@ -14,6 +14,7 @@
 // to a saved program counter, and then the first argument.
 
 // Fetch the int at addr from the current process.
+// TODO base computation is not correct here because initproc switches to default address space!
 int
 fetchint(uint addr, int *ip)
 {
@@ -96,6 +97,8 @@ extern int sys_kill(void);
 extern int sys_link(void);
 extern int sys_mkdir(void);
 extern int sys_mknod(void);
+extern int sys_mprotect(void);
+extern int sys_munprotect(void);
 extern int sys_open(void);
 extern int sys_pipe(void);
 extern int sys_read(void);
@@ -108,6 +111,7 @@ extern int sys_uptime(void);
 extern int sys_settickets(void);
 extern int sys_gettickets(void);
 extern int sys_getpstat(void);
+
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -133,7 +137,9 @@ static int (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_settickets] sys_settickets,
 [SYS_gettickets] sys_gettickets, 
-[SYS_getpstat] sys_getpstat
+[SYS_getpstat] sys_getpstat, 
+[SYS_mprotect] sys_mprotect, 
+[SYS_munprotect] sys_munprotect
 };
 
 void

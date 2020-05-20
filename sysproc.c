@@ -128,3 +128,26 @@ sys_getpstat(void)
   writepstat(ps);
   return 0;
 }
+
+int 
+sys_mprotect(void) // void *addr, int len
+{
+  int start, len;
+  
+  if ((argint(0, &start) < 0) || (argint(1, &len) < 0) ){
+    return -1;
+  }
+  return mprotect((void*) start, len);
+}
+
+int
+sys_munprotect(void) //void *addr, int len
+{
+  int start, len;
+
+  if ((argint(0, &start) < 0) || (argint(1, &len) < 0))
+  {
+    return -1;
+  }
+  return munprotect((void*) start, len);
+}

@@ -23,3 +23,5 @@
 #define SYS_settickets 22
 #define SYS_gettickets 23
 #define SYS_getpstat 24
+#define SYS_mprotect 25
+#define SYS_munprotect 26

@@ -11,14 +11,19 @@ int
 exec(char *path, char **argv)
 {
   char *s, *last;
-  int i, off;
+  int i, off, firstindex;
+  uint numtextpage;
   uint argc, sz, sp, ustack[3+MAXARG+1];
   uint vaddr;
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
+  struct sechdr sh, strtab;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+  char names[512];
+  uint textaddr = 0;
+  uint textsz;
 
   begin_op();
 
@@ -39,16 +44,36 @@ exec(char *path, char **argv)
   if((pgdir = setupkvm()) == 0)
     goto bad;
 
-  // Add guard page against null pointers
-  // if ((sz = allocuvm(pgdir, 0, PGSIZE)) == 0) {
-  //   goto bad;
-  // }
-  // clearpteu(pgdir, (char*) 0);
-  
   // skip allocating the initial page
   sz = PGSIZE;
 
-  // elf.phoff is pointer to array of program header structs, one for each segment
+  // load string table header into strtab
+  if (readi(ip, (char *)&strtab, elf.shoff + elf.shstrndx * sizeof(sh), sizeof(sh)) != sizeof(sh))
+    goto bad;
+  
+  // read in section names
+  if (readi(ip, names, strtab.sh_offset, strtab.sh_size)<0)
+    goto bad;
+  
+  // check section headers for address of the text section
+  for (i=0, off=elf.shoff; i<elf.shnum; i++, off+= sizeof(sh)){
+    if (readi(ip, (char*) &sh, off, sizeof(sh)) != sizeof(sh))
+      goto bad; 
+    firstindex = (i==0) ? sh.sh_name + 1 : sh.sh_name;
+    if (strncmp(names + firstindex * sizeof(char), ".text", 5) == 0) {
+      textaddr = sh.sh_addr;
+      textsz = sh.sh_size;
+    }
+  }
+
+  // text not found or at wrong address
+  if (textaddr != 0x1000) 
+    goto bad;
+
+  // number of pages that are text only
+  numtextpage = (textsz - (textsz % PGSIZE)) / PGSIZE;
+
+  // this reads the whole program into memory
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     // read the current prog reader into ph
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
@@ -71,9 +96,10 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
+  sz = PGROUNDUP(sz);
+
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
-  sz = PGROUNDUP(sz);
   if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
@@ -110,7 +136,16 @@ exec(char *path, char **argv)
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
+  
   switchuvm(curproc);
+
+  // turn on read-only protection for pure text pages
+  if (mprotect((void *)PGSIZE, numtextpage) < 0) {
+    goto bad;
+  }
+  // make sure all changes seen by hw
+  lcr3(V2P(curproc->pgdir));
+  
   freevm(oldpgdir);
 
   

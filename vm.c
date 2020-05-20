@@ -386,6 +386,80 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
+// make addresses from start ... start + len * pgsize read-only
+// start address must be page-aligned
+// start: base address at which to start protecting
+// len: number of pages to protect
+int mprotect(void* start, int len)
+{
+  struct proc *p = myproc();
+  uint start_uint = (uint) start;
+  pte_t *pte;
+  void* pagestart;
+  int i;
+
+  pte = walkpgdir(p->pgdir, start , 0);
+  // bounds check
+  if (start_uint < PGSIZE || (start_uint + len * PGSIZE) > p->sz)
+  {
+    return -1;
+  }
+
+  // check page alignment
+  if ( (start_uint % PGSIZE) != 0)
+  {
+    return -1;
+  }
+
+  for (i = 0; i < len; i++)
+  {
+    pagestart = (void*) (start_uint + i * PGSIZE);
+    if ((pte = walkpgdir(p->pgdir, pagestart , 0)) == 0) {
+      return -1;
+    }
+    // set page table entry to read-only
+    *pte = (*pte) & (~PTE_W);
+  }
+  
+  return 0;
+}
+
+// allow addresses from start ... start + len * pgsize to write
+// start address must be page-aligned
+
+int munprotect(void *start, int len)
+{
+  struct proc *p = myproc();
+  uint start_uint = (uint)start;
+  pte_t *pte;
+  void *pagestart;
+  int i;
+
+  // bounds check
+  if (start_uint < PGSIZE || (start_uint + len * PGSIZE) > p->sz)
+  {
+    return -1;
+  }
+
+  // check page alignment
+  if ((start_uint % PGSIZE) != 0)
+  {
+    return -1;
+  }
+
+  for (i = 0; i < len; i++)
+  {
+    pagestart = (void *) (start_uint + i * PGSIZE);
+    if ((pte = walkpgdir(p->pgdir, pagestart, 0)) == 0)
+    {
+      return -1;
+    }
+    // set page table entry to read-only
+    *pte = (*pte) | PTE_W;
+  }
+  return 0;
+}
+
 //PAGEBREAK!
 // Blank page.
 //PAGEBREAK!
