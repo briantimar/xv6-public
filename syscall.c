@@ -7,6 +7,9 @@
 #include "x86.h"
 #include "syscall.h"
 
+// whether initproc has switched address space
+int hasswitched = 0;
+
 // User code makes a system call with INT T_SYSCALL.
 // System call number in %eax.
 // Arguments on the stack, from the user call to the C
@@ -14,13 +17,12 @@
 // to a saved program counter, and then the first argument.
 
 // Fetch the int at addr from the current process.
-// TODO base computation is not correct here because initproc switches to default address space!
 int
 fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
   // base of the user address space; 
-  uint base = (curproc == initproc) ? 0 : PGSIZE;
+  uint base = hasswitched ? PGSIZE : 0;
   if(addr >= curproc->sz || addr+4 > curproc->sz || addr < base )
     return -1;
   *ip = *(int*)(addr);
@@ -36,7 +38,7 @@ fetchstr(uint addr, char **pp)
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  uint base = (curproc == initproc) ? 0 : PGSIZE;
+  uint base = hasswitched ? PGSIZE : 0;
   if(addr >= curproc->sz || addr < base)
     return -1;
   *pp = (char*)addr;
@@ -149,8 +151,13 @@ syscall(void)
   struct proc *curproc = myproc();
 
   num = curproc->tf->eax;
+  
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     curproc->tf->eax = syscalls[num]();
+
+    // switch to standard addr space is effected by first exec()
+    if ((~hasswitched) && (num == SYS_exec))
+      hasswitched++;
   } else {
     cprintf("%d %s: unknown sys call %d\n",
             curproc->pid, curproc->name, num);
