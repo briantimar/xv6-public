@@ -52,6 +52,7 @@ struct proc {
   char name[16];               // Process name (debugging)
   int ticketnumber;            // Tickets assigned to this process for scheduling lottery.
   int ticks;                   // how many times this process has been selected by scheduler.
+  int isthread;                // is this a thread or process?
 };
 
 // Process memory is laid out contiguously, low addresses first:

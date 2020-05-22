@@ -151,3 +151,22 @@ sys_munprotect(void) //void *addr, int len
   }
   return munprotect((void*) start, len);
 }
+
+// int clone(void (*)(void *), void *, void*)
+int sys_clone(void){ 
+
+  int fn, arg;
+  char * stack;
+  if ((argint(0, &fn) < 0) || (argint(1, &arg) < 0) || (argptr(2, &stack, PGSIZE) < 0))
+    return -1;
+  return clone((void (*)(void*)) fn, (void *) arg, (void*) stack);
+}
+
+// int join(void **)
+int sys_join(void) {
+  char* stack;
+  // pointer and the stack it points to should both be in user space
+  if (argptr(0,&stack, sizeof(int) ) < 0)
+    return -1;
+  return join((void**) stack);
+}

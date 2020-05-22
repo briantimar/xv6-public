@@ -139,6 +139,7 @@ found:
 
   // Set up initial process status
   p->ticketnumber = 1;
+  p->isthread = 0;
   return p;
 }
 
@@ -252,6 +253,86 @@ fork(void)
   return pid;
 }
 
+// Create a new thread inheriting address space from the current process
+// f: pointer to the function in which the thread will start executing. This
+// function exit() rather than return (ie it is the responsibility of the function to 
+// destroy the thread)
+// arg: pointer to arg for the supplied function
+// stack: pointer to stack (in user memory) for this thread to use
+
+// the thread is implemented as a proc struct and lives in the process table
+// from the point of view of the schedulers, threads and processes are equivalent
+
+// stack should be exactly one page
+
+int clone(void (*f)(void*), void* arg, void* stack)
+{
+  int i, pid;
+  int * sp;
+  uint stackaddr = (uint) stack;
+  struct proc *thread;
+  struct proc *curproc = myproc();
+  
+  // expecting page-aligned stack which should fit in bounds (exactly one page)
+  // TODO: check for page alignment. does this matter?
+  if (  stackaddr < PGSIZE ||  (stackaddr + PGSIZE) > curproc->sz)
+    return -1;
+
+  // this finds available pid in the process table, sets it to EMBYRO, and sets up a kernel stack.
+  if ((thread = allocproc()) == 0)
+  {
+    return -1;
+  }
+
+  thread->isthread = 1;
+  // the thread shares address space with its parent
+  thread->pgdir = curproc->pgdir;
+  thread->sz = curproc->sz;
+  thread->parent = curproc;
+
+  // SETTING UP THE TRAPFRAME
+  *(thread->tf) = *(curproc->tf);
+  // the instruction pointer needs to be set to f
+  thread->tf->eip = (uint) f;
+
+  
+  // the stack is brand new, just need to set up the pointer
+  // important to remember to take off 4 here, need to fit 4-byte address at the top.
+  sp = (int*) (((uint) stack) + PGSIZE - 4);
+  // expecting a single arg, which is always placed just beneath the base
+  *(sp--) = (uint) arg;
+  // and then a dummy return code (f should not return, this will force trap if it does)
+  *sp = 0xffffffff;
+
+  // note that we don't need to stash the caller-stored registers, since this thing is never going to return
+  // but stack and base pointers are required
+  thread->tf->esp = (uint) sp;
+  // base pointer will get stored automatically when we enter the function call, from this ebp
+  // can use that to obtain pointer to the user memory for freeing later
+  thread->tf->ebp = (uint) (sp + 2);
+
+  // copy over all open files.
+  for (i = 0; i < NOFILE; i++)
+    if (curproc->ofile[i])
+      thread->ofile[i] = filedup(curproc->ofile[i]);
+  thread->cwd = idup(curproc->cwd);
+
+  safestrcpy(thread->name, curproc->name, sizeof(curproc->name));
+  
+  // copy ticket count from parent
+  // only other party that modifies count is parent proc of this call
+  thread->ticketnumber = curproc->ticketnumber;
+
+  pid = thread->pid;
+
+  acquire(&ptable.lock);
+
+  thread->state = RUNNABLE;
+
+  release(&ptable.lock);
+  return pid;
+}
+
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
@@ -312,7 +393,7 @@ wait(void)
     // Scan through table looking for exited children.
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != curproc)
+      if( (p->parent != curproc) || (p->isthread))
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
@@ -326,6 +407,9 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        p->ticketnumber = 0;
+        p->ticks = 0;
+        p->isthread = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -339,6 +423,66 @@ wait(void)
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+// Wait for a child thread to exit and return its pid.
+// When an exited child thread is found, the address of its stack in user memory is copied into the given pointer
+// Return -1 if this process has no children.
+int join(void ** stack)
+{
+  struct proc *p;
+  int havekids, pid;
+  void* threadstack;
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);
+  for (;;)
+  {
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if ((p->parent != curproc) || ( p->isthread != 1))
+        continue;
+      havekids = 1;
+      if (p->state == ZOMBIE)
+      {
+        // grab location of the user stack
+        // since thread stack is always allocated with fixed single-page size, growing downwards
+        // this can be obtained by finding the top of the constructed stack via ebp and then taking
+        // off the page offset.
+        threadstack = (void *) (p->tf->ebp + 12 - PGSIZE);
+        // if ( (((uint)threadstack) % PGSIZE) != 0 )
+          // panic("misaligned thread stack.");
+        *stack = threadstack;
+
+        // reset the proc table entry
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        p->ticketnumber = 0;
+        p->ticks = 0;
+        p->isthread = 0;
+
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if (!havekids || curproc->killed)
+    {
+      release(&ptable.lock);
+      return -1;
+    }
+
+    sleep(curproc, &ptable.lock); 
   }
 }
 
