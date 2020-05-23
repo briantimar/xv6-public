@@ -1,6 +1,10 @@
 struct stat;
 struct pstat;
 struct rtcdate;
+struct lock_t {
+    int ticket;
+    int turn;
+};
 
 // system calls
 int fork(void);
@@ -45,3 +49,6 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+void lock_t(struct lock_t*);
+void unlock_t(struct lock_t*);
+void initlock_t(struct lock_t*);

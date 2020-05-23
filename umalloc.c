@@ -21,8 +21,10 @@ typedef union header Header;
 static Header base;
 static Header *freep;
 
-void
-free(void *ap)
+static struct lock_t memlock;
+
+static void
+free_nolock(void *ap)
 {
   Header *bp, *p;
 
@@ -43,6 +45,13 @@ free(void *ap)
   freep = p;
 }
 
+void free(void *ap) {
+  lock_t(&memlock);
+  free_nolock(ap);
+  unlock_t(&memlock);
+}
+
+// only call while holding the memlock
 static Header*
 morecore(uint nu)
 {
@@ -56,7 +65,7 @@ morecore(uint nu)
     return 0;
   hp = (Header*)p;
   hp->s.size = nu;
-  free((void*)(hp + 1));
+  free_nolock((void*)(hp + 1));
   return freep;
 }
 
@@ -67,6 +76,7 @@ malloc(uint nbytes)
   uint nunits;
 
   nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1;
+  lock_t(&memlock);
   if((prevp = freep) == 0){
     base.s.ptr = freep = prevp = &base;
     base.s.size = 0;
@@ -81,10 +91,15 @@ malloc(uint nbytes)
         p->s.size = nunits;
       }
       freep = prevp;
+      unlock_t(&memlock);
       return (void*)(p + 1);
     }
-    if(p == freep)
-      if((p = morecore(nunits)) == 0)
+    if(p == freep) {
+      if((p = morecore(nunits)) == 0) {
+        unlock_t(&memlock);
         return 0;
+      }
+    }
   }
+  unlock_t(&memlock);
 }

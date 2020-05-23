@@ -104,3 +104,24 @@ memmove(void *vdst, const void *vsrc, int n)
     *dst++ = *src++;
   return vdst;
 }
+
+
+
+void initlock_t(struct lock_t *lk)
+{
+  lk->ticket = 0;
+  lk->turn = 0;
+}
+
+void lock_t(struct lock_t *lk)
+{
+  int turn = fetchadd(&(lk->ticket), 1);
+  while (turn != lk->turn)
+  {
+  }
+}
+
+void unlock_t(struct lock_t *lk)
+{
+  fetchadd(&(lk->turn), 1);
+}
