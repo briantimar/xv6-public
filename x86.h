@@ -133,7 +133,7 @@ xchg(volatile uint *addr, uint newval)
 // atomic fetch-and-add from https://en.wikipedia.org/wiki/Fetch-and-add
 // adds value to the int at variable, while returning the old value.
 static inline int 
-fetchadd(int *variable, int value)
+fetchadd(volatile int *variable, int value)
 {
   __asm__ volatile("lock; xaddl %0, %1"
                    : "+r"(value), "+m"(*variable) // input+output

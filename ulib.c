@@ -4,6 +4,7 @@
 #include "user.h"
 #include "x86.h"
 
+
 char*
 strcpy(char *s, const char *t)
 {
@@ -105,15 +106,15 @@ memmove(void *vdst, const void *vsrc, int n)
   return vdst;
 }
 
+//// ticket locks
 
-
-void initlock_t(struct lock_t *lk)
+void initlock_t(volatile struct lock_t *lk)
 {
   lk->ticket = 0;
   lk->turn = 0;
 }
 
-void lock_t(struct lock_t *lk)
+void lock_t(volatile struct lock_t *lk)
 {
   int turn = fetchadd(&(lk->ticket), 1);
   while (turn != lk->turn)
@@ -121,7 +122,31 @@ void lock_t(struct lock_t *lk)
   }
 }
 
-void unlock_t(struct lock_t *lk)
+void unlock_t(volatile struct lock_t *lk)
 {
   fetchadd(&(lk->turn), 1);
 }
+
+
+/// threads api
+
+// creates a new thread; returns the pid if successful else -1
+// first arg is the function in which thread runs, second is the arg
+// function must exit() rather than return
+int thread_create(void (*f)(void *), void *arg){
+  void * stack;
+  if ((stack = malloc(4096)) < 0)
+    return -1;
+  return clone(f, arg, stack);
+}
+
+// waits for a single child thread to exit, and returns its pid when it does so
+// if no child threads are present returns -1
+int thread_join(void) {
+  void * stack;
+  int pid = join(&stack);
+  free(stack);
+  return pid;
+}
+
+

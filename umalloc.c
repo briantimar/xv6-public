@@ -57,7 +57,6 @@ morecore(uint nu)
 {
   char *p;
   Header *hp;
-
   if(nu < 4096)
     nu = 4096;
   p = sbrk(nu * sizeof(Header));
@@ -101,5 +100,4 @@ malloc(uint nbytes)
       }
     }
   }
-  unlock_t(&memlock);
 }
