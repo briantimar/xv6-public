@@ -1,6 +1,6 @@
 # Brian OS
 
-Lots of inspiration drawn from the [https://github.com/remzi-arpacidusseau/ostep-projects](OSTEP xv6 projects).
+Lots of inspiration drawn from the [OSTEP xv6 projects](https://github.com/remzi-arpacidusseau/ostep-projects).
 
 ## Things added
 
@@ -19,9 +19,13 @@ Lots of inspiration drawn from the [https://github.com/remzi-arpacidusseau/ostep
 It's essentially the same as the standard xv6 address space, but shifted up by one page. RO protections are added to all pages which contain only program text. If there are NTEXT of these, and NELF pages total in the executable, the layout looks like this:
 
 0x0000 - 0x1000: unmapped
+
 0x1000 - NTEXT * 0x1000: RO text
+
 NTEXT * 0x1000 - NELF * 0x1000: RW program data (some .text, as well as the data sections)
+
 NELF * 0x1000 - (NELF+1) * 0x1000: guard page, user-inaccessible
+
 (NELF+1) * 0x1000 - (NELF+2) * 0x1000: stack
 
 ### How threading is done.
