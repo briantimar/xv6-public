@@ -42,3 +42,5 @@ Spin locks are added to the `umalloc` library, to prevent race conditions when m
 * better `ps` (address space summary?)
 * `mmap`
 * demand zeroing, copy-on-write for pages allocated to processes
+* a `time` utility
+* swap space and a page cache

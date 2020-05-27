@@ -162,6 +162,19 @@ cgaputc(int c)
   crt[pos] = ' ' | 0x0700;
 }
 
+// clear all text currently on the screen, without modifying the device buffer
+void 
+clearconsole(void) {
+  int pos = 0;
+  memset(crt, 0, sizeof(crt[0]) * (24 * 80));
+
+  outb(CRTPORT, 14);
+  outb(CRTPORT + 1, pos >> 8);
+  outb(CRTPORT, 15);
+  outb(CRTPORT + 1, pos);
+  crt[pos] = ' ' | 0x0700;
+}
+
 void
 consputc(int c)
 {

@@ -22,6 +22,7 @@ void            consoleinit(void);
 void            cprintf(char*, ...);
 void            consoleintr(int(*)(void));
 void            panic(char*) __attribute__((noreturn));
+void            clearconsole(void);
 
 // exec.c
 int             exec(char*, char**);

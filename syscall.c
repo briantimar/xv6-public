@@ -115,6 +115,7 @@ extern int sys_gettickets(void);
 extern int sys_getpstat(void);
 extern int sys_clone(void);
 extern int sys_join(void);
+extern int sys_clear(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -144,7 +145,8 @@ static int (*syscalls[])(void) = {
 [SYS_mprotect] sys_mprotect, 
 [SYS_munprotect] sys_munprotect, 
 [SYS_clone] sys_clone, 
-[SYS_join] sys_join
+[SYS_join] sys_join, 
+[SYS_clear] sys_clear
 };
 
 void

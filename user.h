@@ -35,6 +35,7 @@ int mprotect(void*, int);
 int munprotect(void*, int);
 int clone(void (*)(void *), void *, void*);
 int join(void **);
+int clear(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
