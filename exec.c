@@ -137,6 +137,8 @@ exec(char *path, char **argv)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   
+  // start the clock ticks fresh for user program
+  curproc->ticks = 0;
   switchuvm(curproc);
 
   // turn on read-only protection for pure text pages
