@@ -139,6 +139,9 @@ exec(char *path, char **argv)
   
   // start the clock ticks fresh for user program
   curproc->ticks = 0;
+  acquire(&tickslock);
+  curproc->starttick = ticks;
+  release(&tickslock);
   switchuvm(curproc);
 
   // turn on read-only protection for pure text pages

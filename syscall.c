@@ -116,6 +116,7 @@ extern int sys_getpstat(void);
 extern int sys_clone(void);
 extern int sys_join(void);
 extern int sys_clear(void);
+extern int sys_gettimes(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -146,7 +147,8 @@ static int (*syscalls[])(void) = {
 [SYS_munprotect] sys_munprotect, 
 [SYS_clone] sys_clone, 
 [SYS_join] sys_join, 
-[SYS_clear] sys_clear
+[SYS_clear] sys_clear, 
+[SYS_gettimes] sys_gettimes
 };
 
 void

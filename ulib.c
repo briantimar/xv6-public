@@ -3,6 +3,7 @@
 #include "fcntl.h"
 #include "user.h"
 #include "x86.h"
+#include "pstat.h"
 
 
 char*
@@ -149,4 +150,21 @@ int thread_join(void) {
   return pid;
 }
 
+// user time elapsed for a given process
+// equal to the number of times the process has been scheduled - so resolution is given by the 
+// timer interrupt cycle.
+// TODO this is quite wastful..
+int getuserticks(void) {
+  struct pstat ps;
+  int i;
+  int pid = getpid();
+  if (getpstat(&ps) < 0)
+    return -1;
+  for (i=0; i<NPROC; i++) {
+    if (ps.pid[i] == pid){
+      return ps.ticks[i];
+    }
+  }
+  return -1;
+}
 

@@ -28,3 +28,4 @@
 #define SYS_clone 27
 #define SYS_join 28
 #define SYS_clear 29
+#define SYS_gettimes 30

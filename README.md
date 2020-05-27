@@ -36,6 +36,14 @@ Threads, like xv6 processes, must terminate via `exit()`. Zombie threads are col
 
 Spin locks are added to the `umalloc` library, to prevent race conditions when multiple threads in the same address space need to allocated memory.
 
+### How gettimes() works
+
+The system call `gettimes()` fills in a `times` struct for a user process with two integer values:
+
+* `procticks` - the number of times this process has been forced to yield from the RUNNING state. Initialized to zero in `exec()` - this is a rough measure of time elapsed in a single active thread.
+* `allticks` - the total number of timer interrupts since the process was exec()'d. 
+
+
 ## TODO
 
 * `clear`
@@ -49,3 +57,4 @@ Spin locks are added to the `umalloc` library, to prevent race conditions when m
 
 * the random number generator used for the lottery-ticket scheduling can overflow
 * interrupts are disabled by default when acquiring spinlocks, which means clock-tick values based on timer interrupt counts are only approximate.
+* tick variables will overflow uint bounds.

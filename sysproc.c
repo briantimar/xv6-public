@@ -7,6 +7,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "pstat.h"
+#include "times.h"
 
 int
 sys_fork(void)
@@ -90,6 +91,26 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// user ticks as well as total ticks since process started executing.
+int 
+sys_gettimes(void) {
+  struct times *t;
+  struct proc *p = myproc();
+  uint curtick;
+  if (argptr(0, (char**) &t, sizeof(struct times)) < 0)
+    return -1;
+  
+  acquire(&tickslock);
+  curtick = ticks;
+  release(&tickslock);
+
+  t->procticks = p->ticks;
+  t->allticks = curtick - p->starttick;
+
+  return 0;
+}
+
 
 // sets number of lottery tickets for current process
 int

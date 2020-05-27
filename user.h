@@ -1,6 +1,7 @@
 struct stat;
 struct pstat;
 struct rtcdate;
+struct times;
 struct lock_t {
  int ticket;
  int turn;
@@ -36,6 +37,7 @@ int munprotect(void*, int);
 int clone(void (*)(void *), void *, void*);
 int join(void **);
 int clear(void);
+int gettimes(struct times*);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -56,3 +58,4 @@ void initlock_t(volatile struct lock_t*);
 int thread_create(void (*)(void *), void *);
 int thread_join(void);
 void testlock(void);
+int getuserticks(void);

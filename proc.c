@@ -140,6 +140,10 @@ found:
   // Set up initial process status
   p->ticketnumber = 1;
   p->isthread = 0;
+  p->ticks = 0;
+  acquire(&tickslock);
+  p->starttick = ticks;
+  release(&tickslock);
   return p;
 }
 
@@ -554,10 +558,6 @@ scheduler(void)
 
     swtch(&(c->scheduler), p->context);
     switchkvm();
-    // update the process histories
-    p->ticks += 1;
-    // oldindex = update_procselections(i);
-    // ptable.proc[oldindex].ticks -= 1;
 
     // Process is done running for now.
     // It should have changed its p->state before coming back.
