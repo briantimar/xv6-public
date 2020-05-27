@@ -10,26 +10,26 @@
 #include "random.h"
 
 
-// rolling history of proc number selections
-static int procselections[TICK_WINDOW_SIZE];
+// // rolling history of proc number selections
+// static int procselections[TICK_WINDOW_SIZE];
 
-static void init_procselections(void){
-  int i;
-  for (i=0; i < TICK_WINDOW_SIZE; i++) {
-    procselections[i] = -1;
-  }
-}
+// static void init_procselections(void){
+//   int i;
+//   for (i=0; i < TICK_WINDOW_SIZE; i++) {
+//     procselections[i] = -1;
+//   }
+// }
 
-// update the process history with the latest index selected
-// returns: index of the oldes process selection, to be discarded.
-static int update_procselections(int procindex) {
-  int oldest = procselections[0];
-  for (int i=0; i < TICK_WINDOW_SIZE-1; i++) {
-    procselections[i] = procselections[i+1];
-  }
-  procselections[TICK_WINDOW_SIZE-1] = procindex;
-  return oldest;
-}
+// // update the process history with the latest index selected
+// // returns: index of the oldes process selection, to be discarded.
+// static int update_procselections(int procindex) {
+//   int oldest = procselections[0];
+//   for (int i=0; i < TICK_WINDOW_SIZE-1; i++) {
+//     procselections[i] = procselections[i+1];
+//   }
+//   procselections[TICK_WINDOW_SIZE-1] = procindex;
+//   return oldest;
+// }
 
 struct {
   struct spinlock lock;
@@ -152,7 +152,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   // at this point no procs have been assigned, ok to set up here
-  init_procselections();
+  // init_procselections();
 
   p = allocproc();
   
@@ -504,7 +504,7 @@ scheduler(void)
   int i;
   int weights[NPROC];
   int ticketcount;
-  int oldindex;
+  // int oldindex;
 
   for(;;){
     // Enable interrupts on this processor.
@@ -538,10 +538,7 @@ scheduler(void)
     }
     p = &(ptable.proc[i]);
 
-    // update the process histories
-    p->ticks +=1;
-    oldindex = update_procselections(i);
-    ptable.proc[oldindex].ticks -= 1;
+
 
         // LINEAR PROCESS SCAN
         // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -557,6 +554,10 @@ scheduler(void)
 
     swtch(&(c->scheduler), p->context);
     switchkvm();
+    // update the process histories
+    p->ticks += 1;
+    // oldindex = update_procselections(i);
+    // ptable.proc[oldindex].ticks -= 1;
 
     // Process is done running for now.
     // It should have changed its p->state before coming back.

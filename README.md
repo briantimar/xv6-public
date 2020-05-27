@@ -44,3 +44,8 @@ Spin locks are added to the `umalloc` library, to prevent race conditions when m
 * demand zeroing, copy-on-write for pages allocated to processes
 * a `time` utility
 * swap space and a page cache
+
+## known issues
+
+* the random number generator used for the lottery-ticket scheduling can overflow
+* interrupts are disabled by default when acquiring spinlocks, which means clock-tick values based on timer interrupt counts are only approximate.
