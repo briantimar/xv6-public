@@ -12,9 +12,19 @@ struct {
     struct pagebuf pages[NPAGE];
     // pointer to the mostly recently used page
     struct pagebuf* head;
+    // number of pages currently allocated
+    int nalloc;
     
 } pagecache;
 
+// number of pages allocated
+int pagecount(void){
+    int ct;
+    acquire(&pagecache.lock);
+    ct = pagecache.nalloc;
+    release(&pagecache.lock);
+    return ct;
+}
 
 // setup code for the page cache. run this in main() 
 void pageinit(void) {
@@ -23,6 +33,7 @@ void pageinit(void) {
     acquire(&pagecache.lock);
     pagecache.head = pagecache.pages;
     pagecache.head->prev = 0;
+    pagecache.nalloc = 0;
 
     for (pg=pagecache.pages; pg < pagecache.pages + (NPAGE-1); pg++) {
         (pg+1)->prev = pg;
@@ -37,6 +48,10 @@ void pageinit(void) {
 // sets the given pagebuf to be the most recently used.
 // call while holding pagelock.
 void setMRU(struct pagebuf* pb) {
+           
+    if (pb == pagecache.head){
+        return;
+    }
     // move to head of list
     if (pb->next != 0)
      {
@@ -52,15 +67,18 @@ void setMRU(struct pagebuf* pb) {
     pagecache.head = pb;
 }
 
-// returns pointer to a free page buffer
+// returns pointer to a free page buffer. 
+// marks it as used with ref ct 1
 struct pagebuf* getfreebuf(void) {
     struct pagebuf* pb;
     acquire(&pagecache.lock);
     // walks the list of pages starting at most recently used.
     for(pb = pagecache.head; pb != 0; pb = pb->next) {
-        if (~(pb->used)){
+        if ((pb->used)==0){
             pb->used = 1;
+            pb->refcnt = 1;
             setMRU(pb);
+            pagecache.nalloc++;
             release(&pagecache.lock);
             return pb;
         }
@@ -75,7 +93,7 @@ struct pagebuf* getbuf(uint physaddr){
     acquire(&pagecache.lock);
     for (pb = pagecache.head; pb != 0; pb = pb->next)
     {
-        if (pb->physaddr == physaddr && pb->used)
+        if (pb->physaddr == physaddr && (pb->used ==1))
         {
             setMRU(pb);
             release(&pagecache.lock);
@@ -91,4 +109,24 @@ void writebuf(struct pagebuf* pb) {
     acquire(&pagecache.lock);
     setMRU(pb);
     release(&pagecache.lock);
+}
+
+// releases a page buffer, moving to head of list
+void releasebuf(struct pagebuf* pb) {
+    acquire(&pagecache.lock);
+    pb->used = 0;
+    pb->refcnt = 0;
+    pb->physaddr = 0;
+    setMRU(pb);
+    pagecache.nalloc--;
+    release(&pagecache.lock);
+}
+
+// ensures a given physical address is freed from the buffer
+void pbfree(uint pa) {
+    struct pagebuf* pb;
+    pb = getbuf(pa);
+    if ((pb=getbuf(pa)) != 0) {
+        releasebuf(pb);
+    }
 }

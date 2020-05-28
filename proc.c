@@ -8,28 +8,10 @@
 #include "spinlock.h"
 #include "pstat.h"
 #include "random.h"
+#include "page.h"
 
 
-// // rolling history of proc number selections
-// static int procselections[TICK_WINDOW_SIZE];
 
-// static void init_procselections(void){
-//   int i;
-//   for (i=0; i < TICK_WINDOW_SIZE; i++) {
-//     procselections[i] = -1;
-//   }
-// }
-
-// // update the process history with the latest index selected
-// // returns: index of the oldes process selection, to be discarded.
-// static int update_procselections(int procindex) {
-//   int oldest = procselections[0];
-//   for (int i=0; i < TICK_WINDOW_SIZE-1; i++) {
-//     procselections[i] = procselections[i+1];
-//   }
-//   procselections[TICK_WINDOW_SIZE-1] = procindex;
-//   return oldest;
-// }
 
 struct {
   struct spinlock lock;
@@ -752,6 +734,7 @@ procdump(void)
 void writepstat(struct pstat *ps) {
   int i;
   struct proc * p;
+  ps->pagecount = pagecount();
   acquire(&ptable.lock);
   for (i=0; i<NPROC; i++) {
     p = &ptable.proc[i];
@@ -762,7 +745,7 @@ void writepstat(struct pstat *ps) {
     // minus one for the first virtual page, not mapped
     ps->pages[i] = (p->sz - 1) / PGSIZE;
     safestrcpy(ps->name[i], p->name, 16);
+   
   }
   release(&ptable.lock);
-
 }

@@ -7,25 +7,25 @@
 void showps(struct pstat* ps) {
     int i;
 
+    if ((getpstat(ps)) < 0)
+    {
+        printf(2, "Unable to load ptstat\n");
+        exit();
+    }
     printf(1, "Process stats:\n-----------------\n");
-    printf(1, "PID | name | state | size (pages) | ticket count | ticks\n---------------\n");
+    printf(1, "PID | name | state | size, pages (total: %d) | ticket count | ticks\n---------------\n", ps->pagecount);
     
-        if ((getpstat(ps)) < 0)
-         {
-            printf(2, "Unable to load ptstat\n");
-            exit();
-         }
-        for (i=0; i<NPROC; i++) {
-            if (ps->state[i] > 0) {
-                printf(1, "%d | %s | %d | %d | %d | %d \n", ps->pid[i],
-                                                    ps->name[i], 
-                                                    ps->state[i],
-                                                    ps->pages[i],
-                                                        ps->tickets[i], 
-                                                        ps->ticks[i] 
-                );
-            }
+    for (i=0; i<NPROC; i++) {
+        if (ps->state[i] > 0) {
+            printf(1, "%d | %s | %d | %d | %d | %d \n", ps->pid[i],
+                                                ps->name[i], 
+                                                ps->state[i],
+                                                ps->pages[i],
+                                                    ps->tickets[i], 
+                                                    ps->ticks[i] 
+            );
         }
+    }
 }
 
 int main(int argc, char* argv[]) {

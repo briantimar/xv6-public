@@ -6,6 +6,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "page.h"
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
@@ -183,10 +184,17 @@ void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
   char *mem;
+  struct pagebuf* pb;
+
 
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
   mem = kalloc();
+
+  pb = getfreebuf();
+  pb->physaddr = V2P(mem);
+  writebuf(pb);
+
   memset(mem, 0, PGSIZE);
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
   memmove(mem, init, sz);
@@ -222,6 +230,7 @@ int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
+  struct pagebuf* pb;
   uint a;
 
   if(newsz >= KERNBASE)
@@ -231,12 +240,24 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
+    // obtain a new physical page
     mem = kalloc();
+
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
     }
+    // record it in the page list
+    if ((pb = getfreebuf())<0) {
+      cprintf("Page list full\n");
+      deallocuvm(pgdir, newsz, oldsz);
+      return 0;
+    }
+    pb->physaddr = V2P(mem);
+    pb->used = 1;
+    writebuf(pb);
+
     memset(mem, 0, PGSIZE);
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
       cprintf("allocuvm out of memory (2)\n");
@@ -270,6 +291,8 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
+      // release in the page list
+      pbfree(pa);
       char *v = P2V(pa);
       kfree(v);
       *pte = 0;
@@ -284,13 +307,17 @@ void
 freevm(pde_t *pgdir)
 {
   uint i;
+  uint pa;
 
   if(pgdir == 0)
     panic("freevm: no pgdir");
+  // this deallocates the pages
   deallocuvm(pgdir, KERNBASE, 0);
+  // this deallocates the page directory entries
   for(i = 0; i < NPDENTRIES; i++){
     if(pgdir[i] & PTE_P){
-      char * v = P2V(PTE_ADDR(pgdir[i]));
+      pa = PTE_ADDR(pgdir[i]);
+      char * v = P2V(pa);
       kfree(v);
     }
   }
@@ -322,7 +349,7 @@ copyuvm(pde_t *pgdir, uint sz)
 
   if((d = setupkvm()) == 0)
     return 0;
-  
+  // skip the first page of address space, not mapped
   for(i = PGSIZE; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
