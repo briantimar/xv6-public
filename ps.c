@@ -13,17 +13,22 @@ void showps(struct pstat* ps) {
         exit();
     }
     printf(1, "Process stats:\n-----------------\n");
-    printf(1, "PID | name | state | size, pages (total: %d) | ticket count | ticks\n---------------\n", ps->pagecount);
+    printf(1, "PID | name | state | size (pages) |  ticks\n---------------\n");
     
-    for (i=0; i<NPROC; i++) {
-        if (ps->state[i] > 0) {
-            printf(1, "%d | %s | %d | %d | %d | %d \n", ps->pid[i],
-                                                ps->name[i], 
-                                                ps->state[i],
-                                                ps->pages[i],
-                                                    ps->tickets[i], 
-                                                    ps->ticks[i] 
-            );
+        if ((getpstat(ps)) < 0)
+         {
+            printf(2, "Unable to load ptstat\n");
+            exit();
+         }
+        for (i=0; i<NPROC; i++) {
+            if (ps->state[i] > 0) {
+                printf(1, "%d | %s | %d | %d | %d \n", ps->pid[i],
+                                                    ps->name[i], 
+                                                    ps->state[i],
+                                                    ps->pages[i],
+                                                        ps->ticks[i] 
+                );
+            }
         }
     }
 }

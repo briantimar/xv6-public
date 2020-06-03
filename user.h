@@ -29,8 +29,6 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-int gettickets(void);
-int settickets(int);
 int getpstat(struct pstat*);
 int mprotect(void*, int);
 int munprotect(void*, int);

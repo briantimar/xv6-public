@@ -7,10 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "pstat.h"
-#include "random.h"
 #include "page.h"
-
-
 
 
 struct {
@@ -120,7 +117,6 @@ found:
   p->context->eip = (uint)forkret;
 
   // Set up initial process status
-  p->ticketnumber = 1;
   p->isthread = 0;
   p->ticks = 0;
   acquire(&tickslock);
@@ -227,9 +223,6 @@ fork(void)
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-  // copy ticket count from parent
-  // only other party that modifies count is parent proc of this call
-  np->ticketnumber = curproc->ticketnumber;
 
   pid = np->pid;
 
@@ -308,9 +301,6 @@ int clone(void (*f)(void*), void* arg, void* stack)
 
   safestrcpy(thread->name, curproc->name, sizeof(curproc->name));
   
-  // copy ticket count from parent
-  // only other party that modifies count is parent proc of this call
-  thread->ticketnumber = curproc->ticketnumber;
 
   pid = thread->pid;
 
@@ -397,7 +387,6 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-        p->ticketnumber = 0;
         p->ticks = 0;
         p->isthread = 0;
         release(&ptable.lock);
@@ -456,7 +445,6 @@ int join(void ** stack)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-        p->ticketnumber = 0;
         p->ticks = 0;
         p->isthread = 0;
 
@@ -490,69 +478,33 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
-  int i;
-  int weights[NPROC];
-  int ticketcount;
-  // int oldindex;
 
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    ticketcount = 0;
-
     acquire(&ptable.lock);
 
-    // LOTTERY PROCESS SELECTION
-    // collect ticket weights for all processes
-    for (i=0; i<NPROC; i++) {
-      if (ptable.proc[i].state != RUNNABLE) {
-        weights[i] = 0;
-      }
-      else {
-        weights[i] = ptable.proc[i].ticketnumber;
-        ticketcount += weights[i];
-      }
-    }
-
-    // no processes, nothing to do
-    if (ticketcount==0) {
-      release(&ptable.lock);
-      continue;
-    }
-    
-    // sample one randomly according to its weight.
-    if ((i =sampleindex(weights, NPROC)) < 0) {
-      panic("invalid proc index");
-    }
-    p = &(ptable.proc[i]);
-
-
-
-        // LINEAR PROCESS SCAN
-        // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        // if(p->state != RUNNABLE)
-        // continue;
-
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE) {
+          continue;
+        }
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
-    c->proc = p;
-    switchuvm(p);
-    p->state = RUNNING;
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-    swtch(&(c->scheduler), p->context);
-    switchkvm();
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
 
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
-    c->proc = 0;
-    // }
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
 
-
-    release(&ptable.lock);
-
+      }
+      release(&ptable.lock);
   }
 }
 
@@ -743,7 +695,6 @@ void writepstat(struct pstat *ps) {
   for (i=0; i<NPROC; i++) {
     p = &ptable.proc[i];
     ps->pid[i] = p->pid;
-    ps->tickets[i] = p->ticketnumber;
     ps->ticks[i] = p->ticks;
     ps->state[i] = p->state;
     // minus one for the first virtual page, not mapped
