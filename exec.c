@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#include "page.h"
 
 int
 exec(char *path, char **argv)
@@ -23,7 +24,9 @@ exec(char *path, char **argv)
   struct proc *curproc = myproc();
   char names[512];
   uint textaddr = 0;
-  uint textsz;
+  uint textsz = 0;
+
+  cprintf("Entering exec for prog %s\n", path);
 
   begin_op();
 
@@ -130,12 +133,50 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
+  //COW: now that the stack is set up, set everything to write-only
+  if (setperm(pgdir, PGSIZE, sz, PTE_U | PTE_P) != 0)
+    goto bad;
+  cprintf("exec %s: read-only set\n", path);
+
+  // DEBUG COW - summary of the pagedir?
+
+  uint va, pa, flags;
+  int refct;
+  pte_t* pte;
+
+  cprintf("exec - old pgdir pages:\n");
+  for (va = PGSIZE; va < curproc->sz; va += PGSIZE)
+  {
+    pte = walkpgdir(curproc->pgdir, (void *)va, 0);
+    pa = PTE_ADDR(*pte);
+    flags = PTE_FLAGS(*pte);
+    refct = readrefct(pa);
+    cprintf("page 0x%x: present %d user %d writeable %d refct %d\n",
+            pa,
+            flags & PTE_P, flags & PTE_U, flags & PTE_W,
+            refct);
+  }
+
+  cprintf("exec - new pgdir pages:\n");
+  for (va=PGSIZE; va<sz; va += PGSIZE) {
+    pte = walkpgdir(pgdir, (void*) va, 0);
+    pa = PTE_ADDR(*pte);
+    flags = PTE_FLAGS(*pte);
+    refct = readrefct(pa);
+    cprintf("page 0x%x: present %d user %d writeable %d refct %d\n",
+            pa,
+            flags & PTE_P, flags & PTE_U, flags & PTE_W, 
+            refct);
+  }
+
+
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
+  curproc->numtextpage = numtextpage;
   
   // start the clock ticks fresh for user program
   curproc->ticks = 0;
@@ -143,15 +184,16 @@ exec(char *path, char **argv)
   curproc->starttick = ticks;
   release(&tickslock);
   switchuvm(curproc);
-
-  // turn on read-only protection for pure text pages
-  if (mprotect((void *)PGSIZE, numtextpage) < 0) {
-    goto bad;
-  }
+  // cprintf("exec prog %s: switched pagedirs\n");
+  // // turn on read-only protection for pure text pages
+  // if (mprotect((void *)PGSIZE, numtextpage) < 0) {
+  //   goto bad;
+  // }
   // make sure all changes seen by hw
   lcr3(V2P(curproc->pgdir));
-  
+  // cprintf("exec prog %s: pgdir switched\n");
   freevm(oldpgdir);
+  // cprintf("prog %s exiting exec\n", path);
 
   
   return 0;

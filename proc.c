@@ -137,8 +137,6 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  // at this point no procs have been assigned, ok to set up here
-  // init_procselections();
 
   p = allocproc();
   
@@ -146,6 +144,7 @@ userinit(void)
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
+  cprintf("userinit: uvm setup complete\n");
   p->sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
@@ -205,12 +204,16 @@ fork(void)
     return -1;
   }
 
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
+  // copy on write: children inherit pointers at first
+  lazycopyuvm(curproc->pgdir, curproc->sz);
+  np->pgdir = curproc->pgdir;
+  // if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  //   kfree(np->kstack);
+  //   np->kstack = 0;
+  //   np->state = UNUSED;
+  //   return -1;
+  // }
+
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -346,7 +349,7 @@ exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
-
+  cprintf("proc %d is exiting\n", curproc->pid);
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -382,6 +385,7 @@ wait(void)
       if( (p->parent != curproc) || (p->isthread))
         continue;
       havekids = 1;
+      cprintf("parent pid %d has child pid %d, in state %d\n", curproc->pid, p->pid, p->state);
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;

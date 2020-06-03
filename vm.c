@@ -33,7 +33,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+ pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
@@ -76,6 +76,27 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
       break;
     a += PGSIZE;
     pa += PGSIZE;
+  }
+  return 0;
+}
+
+// set or unset permissions for *all* pages in the specified virtual address range.
+// assumes a contiguous address space [start, stop), with both addresses page-aligned.
+// TODO: add useful return codes here
+
+int setperm(pde_t* pgdir,  uint start, uint stop, int perm) {
+  pte_t *pte;
+  char* pageaddr;
+
+  if (((start % PGSIZE)!= 0) || ((stop % PGSIZE)!=0))
+    panic("setperm: addresses not aligned.");
+  for (pageaddr = (char*) start; ((uint) pageaddr) < stop; pageaddr += PGSIZE) {
+    if ((pte=walkpgdir(pgdir, pageaddr, 0)) == 0)
+      panic("setperm: failed to load pte.");
+    // clear any existing flags
+    *pte = *pte & (~0xFFF);
+    // write in new flags
+    *pte = *pte | perm;
   }
   return 0;
 }
@@ -194,9 +215,12 @@ inituvm(pde_t *pgdir, char *init, uint sz)
   pb = getfreebuf();
   pb->physaddr = V2P(mem);
   writebuf(pb);
+  cprintf("inituvm: new page at 0x%x\n", pb->physaddr);
 
   memset(mem, 0, PGSIZE);
-  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
+  // establishes page table mappings
+  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W | PTE_U);
+  // copies program data in
   memmove(mem, init, sz);
 }
 
@@ -254,12 +278,15 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
     }
+
     pb->physaddr = V2P(mem);
     pb->used = 1;
     writebuf(pb);
 
+    cprintf("allocuvm: new page at 0x%x\n", pb->physaddr);
     memset(mem, 0, PGSIZE);
-    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+    // add the physical page to the directory
+    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0){
       cprintf("allocuvm out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
       kfree(mem);
@@ -291,11 +318,13 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
-      // release in the page list
-      pbfree(pa);
-      char *v = P2V(pa);
-      kfree(v);
-      *pte = 0;
+      // drop a page copy 
+      if ((decrefpb(pa)) ==0) {
+        cprintf("freeing 0x%x\n", pa);
+        char *v = P2V(pa);
+        kfree(v);
+        *pte = 0;
+      }
     }
   }
   return newsz;
@@ -335,6 +364,28 @@ clearpteu(pde_t *pgdir, char *uva)
   if(pte == 0)
     panic("clearpteu");
   *pte &= ~PTE_U;
+}
+
+
+// for COW: increase the reference count of each page allocated to a process, but don't copy anything
+void 
+lazycopyuvm(pde_t* pgdir, uint sz){
+  pte_t *pte;
+  uint pa;
+  struct  pagebuf *pb;
+  
+  int i;
+  for (i = PGSIZE; i < sz; i += PGSIZE)
+  {
+    if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+      panic("lazycopyuvm: pte should exist");
+    if (!(*pte & PTE_P))
+      panic("lazycopyuvm: page not present");
+    pa = PTE_ADDR(*pte);
+    if ((pb = getbuf(pa)) == 0)
+      panic("missing pagebuf for mapped address");
+    pb->refcnt++;
+  }
 }
 
 // Given a parent process's page table, create a copy
@@ -485,6 +536,45 @@ int munprotect(void *start, int len)
     *pte = (*pte) | PTE_W;
   }
   return 0;
+}
+
+// called after user process attempts to write to read-only page
+void cowupdate(void) {
+  struct proc *p = myproc();
+  uint attempted_access = rcr2();
+  uint pa, vapg;
+  pte_t *pte;
+  struct pagebuf* pb;
+  int refct;
+
+  vapg = PGROUNDDOWN(attempted_access);
+
+  cprintf("proc %s attempted a write at 0x%x, in page 0x%x\n", p->name, attempted_access, vapg);
+  cprintf("eip: 0x%x\n", p->tf->eip);
+  pte = walkpgdir(p->pgdir, (void *) attempted_access, 0);
+  // load physical address of offending page
+  pa = PTE_ADDR(*pte);
+  cprintf("corresponding page is at 0x%x\n", pa);
+  if ((pb = getbuf(pa)) == 0)
+    panic("cowupdate: page not in cache");
+  cprintf("refct: %d\n", pb->refcnt);
+  if ((refct = pb->refcnt) == 0)
+    panic("cowupdate: accessing page with zero refs");
+  if ((PTE_FLAGS(*pte) & PTE_P) == 0)
+    //cow routines should only be called on present pages
+    panic("cowpdate: page not present.");
+  if (refct == 1) {
+    // if only one reference, can just flag the page as writeable and retry.
+    setperm(p->pgdir, vapg, vapg+PGSIZE, PTE_P | PTE_U | PTE_W);
+
+  }
+  else{
+    // if two references, make a writeable copy for this process
+    panic("cow");
+
+  }
+  
+
 }
 
 //PAGEBREAK!

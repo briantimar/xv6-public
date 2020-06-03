@@ -88,6 +88,7 @@ struct pagebuf* getfreebuf(void) {
 }
 
 // gets extant buffer with the given physical address, or zero if not in cache.
+// TODO copy out the buffer values 
 struct pagebuf* getbuf(uint physaddr){
     struct pagebuf* pb;
     acquire(&pagecache.lock);
@@ -102,6 +103,18 @@ struct pagebuf* getbuf(uint physaddr){
     }
     release(&pagecache.lock);
     return 0;
+}
+
+// reads ref count to extant pagebuf
+int readrefct(uint pa) {
+    struct pagebuf* pb;
+    int ct;
+    if ((pb=getbuf(pa))==0)
+        return -1;
+    acquire(&pagecache.lock);
+    ct = pb->refcnt;
+    release(&pagecache.lock);
+    return ct;
 }
 
 // commits the buffer data
@@ -122,11 +135,24 @@ void releasebuf(struct pagebuf* pb) {
     release(&pagecache.lock);
 }
 
-// ensures a given physical address is freed from the buffer
-void pbfree(uint pa) {
+// reduce the reference count to a given physical page ("deallocate a copy")
+// if ref count falls to zero, released.
+// returns: remaining reference count.
+int decrefpb(uint pa) {
     struct pagebuf* pb;
-    pb = getbuf(pa);
+    int refct = 0;
     if ((pb=getbuf(pa)) != 0) {
-        releasebuf(pb);
+        acquire(&pagecache.lock);
+        cprintf("decrefpb, 0x%x: old pagecount %d\n", pa,pb->refcnt );
+        if ((refct = --(pb->refcnt)) == 0){
+            // release the buffer
+            pb->used = 0;
+            pb->refcnt = 0;
+            pb->physaddr = 0;
+            setMRU(pb);
+            pagecache.nalloc--;
+        }
+        release(&pagecache.lock);
     }
+    return refct;
 }

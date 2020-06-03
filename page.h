@@ -14,6 +14,6 @@ struct pagebuf* getbuf(uint);
 void writebuf(struct pagebuf*);
 struct pagebuf* getfreebuf(void);
 void releasebuf(struct pagebuf*);
-void pbfree( uint);
+int decrefpb( uint);
 int pagecount(void);
-
+int readrefct(uint);

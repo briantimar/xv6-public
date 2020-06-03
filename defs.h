@@ -189,6 +189,7 @@ int             deallocuvm(pde_t*, uint, uint);
 void            freevm(pde_t*);
 void            inituvm(pde_t*, char*, uint);
 int             loaduvm(pde_t*, char*, struct inode*, uint, uint);
+void            lazycopyuvm(pde_t*, uint);
 pde_t*          copyuvm(pde_t*, uint);
 void            switchuvm(struct proc*);
 void            switchkvm(void);
@@ -196,6 +197,9 @@ int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 int             mprotect(void*, int);
 int             munprotect(void*, int);
+int             setperm(pde_t*, uint, uint, int);
+void            cowupdate(void);
+pde_t*          walkpgdir(pte_t*, const void*, int);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
