@@ -8,7 +8,7 @@ void showps(struct pstat* ps) {
     int i;
 
     printf(1, "Process stats:\n-----------------\n");
-    printf(1, "PID | name | state | size (pages) | ticket count | ticks\n---------------\n");
+    printf(1, "PID | name | state | size (pages) |  ticks\n---------------\n");
     
         if ((getpstat(ps)) < 0)
          {
@@ -17,11 +17,10 @@ void showps(struct pstat* ps) {
          }
         for (i=0; i<NPROC; i++) {
             if (ps->state[i] > 0) {
-                printf(1, "%d | %s | %d | %d | %d | %d \n", ps->pid[i],
+                printf(1, "%d | %s | %d | %d | %d \n", ps->pid[i],
                                                     ps->name[i], 
                                                     ps->state[i],
                                                     ps->pages[i],
-                                                        ps->tickets[i], 
                                                         ps->ticks[i] 
                 );
             }

@@ -5,7 +5,6 @@
 #include "param.h"
 
 struct pstat {
-    int tickets[NPROC]; // number of tickets assigned to a given process
     int pid[NPROC]; // pid's
     int ticks[NPROC]; // number of clock ticks each process has accumulated.
     int state[NPROC]; // current state of each process
