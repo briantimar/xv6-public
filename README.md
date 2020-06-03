@@ -5,7 +5,6 @@ Lots of inspiration drawn from the [OSTEP xv6 projects](https://github.com/remzi
 ## Things added
 
 * Threads, accessible to users via `thread_create()` and `join()` library functions.
-* Lottery scheduling for processes, as per OSTEP. Users can set process priorities by assigning tickets via system call.
 * `getpstat` system call and corresponding `ps` user program to get summary of current process statuses.
 * Unmapped first page, to produce pagefaults when null pointers are dereferenced
 * `mprotect()` and `munprotect()` system calls to toggle page write permissions
@@ -55,6 +54,5 @@ The system call `gettimes()` fills in a `times` struct for a user process with t
 
 ## known issues
 
-* the random number generator used for the lottery-ticket scheduling can overflow
 * interrupts are disabled by default when acquiring spinlocks, which means clock-tick values based on timer interrupt counts are only approximate.
 * tick variables will overflow uint bounds.
