@@ -30,8 +30,8 @@ void showps(struct pstat* ps) {
                 );
             }
         }
-    }
 }
+
 
 int main(int argc, char* argv[]) {
 
