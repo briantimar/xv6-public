@@ -117,6 +117,19 @@ int readrefct(uint pa) {
     return ct;
 }
 
+// increment ref count of extant pagebuf
+int increfct(uint pa)
+{
+    struct pagebuf *pb;
+    int ct;
+    if ((pb = getbuf(pa)) == 0)
+        return -1;
+    acquire(&pagecache.lock);
+    ct = (pb->refcnt)++;
+    release(&pagecache.lock);
+    return ct;
+}
+
 // commits the buffer data
 void writebuf(struct pagebuf* pb) {
     acquire(&pagecache.lock);

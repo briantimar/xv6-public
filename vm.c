@@ -137,6 +137,7 @@ static struct kmap {
 };
 
 // Set up kernel part of a page table.
+
 pde_t*
 setupkvm(void)
 {
@@ -340,7 +341,7 @@ freevm(pde_t *pgdir)
 
   if(pgdir == 0)
     panic("freevm: no pgdir");
-  // this deallocates the pages
+  // this decrements all reference counts, and de-allocates the page frames if any of them hit refcount 0.
   deallocuvm(pgdir, KERNBASE, 0);
   // this deallocates the page directory entries
   for(i = 0; i < NPDENTRIES; i++){
@@ -384,9 +385,11 @@ lazycopyuvm(pde_t* pgdir, uint sz){
     pa = PTE_ADDR(*pte);
     if ((pb = getbuf(pa)) == 0)
       panic("missing pagebuf for mapped address");
-    pb->refcnt++;
+    
+    increfct(pa);
   }
 }
+
 
 // Given a parent process's page table, create a copy
 // of it for a child.
@@ -398,6 +401,7 @@ copyuvm(pde_t *pgdir, uint sz)
   uint pa, i, flags;
   char *mem;
 
+  // allocates a new directory and adds the kernel part. 
   if((d = setupkvm()) == 0)
     return 0;
   // skip the first page of address space, not mapped

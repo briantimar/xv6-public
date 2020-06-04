@@ -17,3 +17,4 @@ void releasebuf(struct pagebuf*);
 int decrefpb( uint);
 int pagecount(void);
 int readrefct(uint);
+int increfct(uint);
