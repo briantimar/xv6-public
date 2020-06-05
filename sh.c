@@ -164,8 +164,11 @@ main(void)
         printf(2, "cannot cd %s\n", buf+3);
       continue;
     }
-    if(fork1() == 0)
+    // printf(1, "rec'd command %s\n", buf);
+    if(fork1() == 0){
+      // printf(1, "now executing the command %s\n", buf);
       runcmd(parsecmd(buf));
+    }
     wait();
   }
   exit();
@@ -184,8 +187,12 @@ fork1(void)
   int pid;
 
   pid = fork();
-  if(pid == -1)
-    panic("fork");
+  if(pid == -1) {
+    panic("fork1: allocproc failed");
+  }
+  else if (pid == -2) {
+    panic("fork1: lazycopyuvm failed.");
+  }
   return pid;
 }
 

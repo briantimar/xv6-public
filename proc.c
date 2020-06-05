@@ -133,14 +133,12 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-
   p = allocproc();
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
-  cprintf("userinit: uvm setup complete\n");
   p->sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
@@ -201,14 +199,12 @@ fork(void)
   }
 
   // copy on write: children inherit pointers at first
-  lazycopyuvm(curproc->pgdir, curproc->sz);
-  np->pgdir = curproc->pgdir;
-  // if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-  //   kfree(np->kstack);
-  //   np->kstack = 0;
-  //   np->state = UNUSED;
-  //   return -1;
-  // }
+  if ((np->pgdir = lazycopyuvm(curproc->pgdir, curproc->sz)) == 0) {
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -2;
+  }
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -231,7 +227,6 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
-
   return pid;
 }
 
@@ -368,6 +363,7 @@ wait(void)
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
+  
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
@@ -375,7 +371,6 @@ wait(void)
       if( (p->parent != curproc) || (p->isthread))
         continue;
       havekids = 1;
-      cprintf("parent pid %d has child pid %d, in state %d\n", curproc->pid, p->pid, p->state);
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
@@ -399,7 +394,6 @@ wait(void)
       release(&ptable.lock);
       return -1;
     }
-
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
@@ -495,7 +489,6 @@ scheduler(void)
         c->proc = p;
         switchuvm(p);
         p->state = RUNNING;
-
         swtch(&(c->scheduler), p->context);
         switchkvm();
 
@@ -571,7 +564,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+ 
   if(p == 0)
     panic("sleep");
 
@@ -676,7 +669,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("proc %d: state %s name %s ticks %d", p->pid, state, p->name, p->ticks);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)

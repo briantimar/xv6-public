@@ -133,41 +133,6 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-  //COW: now that the stack is set up, set everything to write-only
-  if (setperm(pgdir, PGSIZE, sz, PTE_U | PTE_P) != 0)
-    goto bad;
-  cprintf("exec %s: read-only set\n", path);
-
-  // DEBUG COW - summary of the pagedir?
-
-  uint va, pa, flags;
-  int refct;
-  pte_t* pte;
-
-  cprintf("exec - old pgdir pages:\n");
-  for (va = PGSIZE; va < curproc->sz; va += PGSIZE)
-  {
-    pte = walkpgdir(curproc->pgdir, (void *)va, 0);
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    refct = readrefct(pa);
-    cprintf("page 0x%x: present %d user %d writeable %d refct %d\n",
-            pa,
-            flags & PTE_P, flags & PTE_U, flags & PTE_W,
-            refct);
-  }
-
-  cprintf("exec - new pgdir pages:\n");
-  for (va=PGSIZE; va<sz; va += PGSIZE) {
-    pte = walkpgdir(pgdir, (void*) va, 0);
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    refct = readrefct(pa);
-    cprintf("page 0x%x: present %d user %d writeable %d refct %d\n",
-            pa,
-            flags & PTE_P, flags & PTE_U, flags & PTE_W, 
-            refct);
-  }
 
 
   // Commit to the user image.
@@ -184,17 +149,10 @@ exec(char *path, char **argv)
   curproc->starttick = ticks;
   release(&tickslock);
   switchuvm(curproc);
-  // cprintf("exec prog %s: switched pagedirs\n");
-  // // turn on read-only protection for pure text pages
-  // if (mprotect((void *)PGSIZE, numtextpage) < 0) {
-  //   goto bad;
-  // }
+
   // make sure all changes seen by hw
   lcr3(V2P(curproc->pgdir));
-  // cprintf("exec prog %s: pgdir switched\n");
   freevm(oldpgdir);
-  // cprintf("prog %s exiting exec\n", path);
-
   
   return 0;
 

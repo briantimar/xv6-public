@@ -93,8 +93,9 @@ void            end_op();
 extern int      ismp;
 void            mpinit(void);
 
-// pagebuf.c
-void            pageinit(void);
+// page.c
+void            pageinit1(void);
+void            pageinit2(void);
 
 // picirq.c
 void            picenable(int);
@@ -189,7 +190,7 @@ int             deallocuvm(pde_t*, uint, uint);
 void            freevm(pde_t*);
 void            inituvm(pde_t*, char*, uint);
 int             loaduvm(pde_t*, char*, struct inode*, uint, uint);
-void            lazycopyuvm(pde_t*, uint);
+pde_t*          lazycopyuvm(pde_t*, uint);
 pde_t*          copyuvm(pde_t*, uint);
 void            switchuvm(struct proc*);
 void            switchkvm(void);

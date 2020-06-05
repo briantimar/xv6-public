@@ -33,6 +33,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
+
  pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
@@ -43,7 +44,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
   } else {
-    if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
+    if(!alloc || (pgtab = (pte_t*) getpage()) == 0)
       return 0;
     // Make sure all those PTE_P bits are zero.
     memset(pgtab, 0, PGSIZE);
@@ -54,6 +55,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   }
   return &pgtab[PTX(va)];
 }
+
 
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
@@ -144,9 +146,9 @@ setupkvm(void)
   pde_t *pgdir;
   struct kmap *k;
 
-  if((pgdir = (pde_t*)kalloc()) == 0)
+  if((pgdir = (pde_t*) getpage() )== 0)
     return 0;
-  memset(pgdir, 0, PGSIZE);
+  
   if (P2V(PHYSTOP) > (void*)DEVSPACE)
     panic("PHYSTOP too high");
   for(k = kmap; k < &kmap[NELEM(kmap)]; k++)
@@ -157,6 +159,8 @@ setupkvm(void)
     }
   return pgdir;
 }
+
+
 
 // Allocate one page table for the machine for the kernel address
 // space for scheduler processes.
@@ -206,19 +210,12 @@ void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
   char *mem;
-  struct pagebuf* pb;
 
 
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
-  mem = kalloc();
-
-  pb = getfreebuf();
-  pb->physaddr = V2P(mem);
-  writebuf(pb);
-  cprintf("inituvm: new page at 0x%x\n", pb->physaddr);
-
-  memset(mem, 0, PGSIZE);
+  mem = getpage();
+  cprintf("inituvm: new page at 0x%x\n", (uint) mem);
   // establishes page table mappings
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W | PTE_U);
   // copies program data in
@@ -255,7 +252,6 @@ int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
-  struct pagebuf* pb;
   uint a;
 
   if(newsz >= KERNBASE)
@@ -266,31 +262,19 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
     // obtain a new physical page
-    mem = kalloc();
+    mem = getpage();
 
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
     }
-    // record it in the page list
-    if ((pb = getfreebuf())<0) {
-      cprintf("Page list full\n");
-      deallocuvm(pgdir, newsz, oldsz);
-      return 0;
-    }
 
-    pb->physaddr = V2P(mem);
-    pb->used = 1;
-    writebuf(pb);
-
-    cprintf("allocuvm: new page at 0x%x\n", pb->physaddr);
-    memset(mem, 0, PGSIZE);
     // add the physical page to the directory
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0){
       cprintf("allocuvm out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
-      kfree(mem);
+      freepage(mem);
       return 0;
     }
   }
@@ -306,6 +290,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   pte_t *pte;
   uint a, pa;
+  char *v;
 
   if(newsz >= oldsz)
     return oldsz;
@@ -320,12 +305,9 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(pa == 0)
         panic("kfree");
       // drop a page copy 
-      if ((decrefpb(pa)) ==0) {
-        cprintf("freeing 0x%x\n", pa);
-        char *v = P2V(pa);
-        kfree(v);
-        *pte = 0;
-      }
+      v = P2V(pa);
+      freepage((char*) v);
+      *pte = 0;
     }
   }
   return newsz;
@@ -348,10 +330,10 @@ freevm(pde_t *pgdir)
     if(pgdir[i] & PTE_P){
       pa = PTE_ADDR(pgdir[i]);
       char * v = P2V(pa);
-      kfree(v);
+      freepage(v);
     }
   }
-  kfree((char*)pgdir);
+  freepage((char*)pgdir);
 }
 
 // Clear PTE_U on a page. Used to create an inaccessible
@@ -368,14 +350,24 @@ clearpteu(pde_t *pgdir, char *uva)
 }
 
 
-// for COW: increase the reference count of each page allocated to a process, but don't copy anything
-void 
+// for COW:
+// constructs a brand new page directory / tables, but only fills them with lazy copies of (= pointers to)
+// old values.
+// all pages are marked non-writeable, so that subsequent attempts to alter will trigger a true copy.
+pde_t*
 lazycopyuvm(pde_t* pgdir, uint sz){
+  pde_t* d;
   pte_t *pte;
-  uint pa;
-  struct  pagebuf *pb;
+  uint pa, flags;
   
   int i;
+  char* va = 0;
+
+  // allocates a new directory and adds the kernel part.
+  if ((d = setupkvm()) == 0)
+    return 0;
+
+  // write addresses of existing pages into it.
   for (i = PGSIZE; i < sz; i += PGSIZE)
   {
     if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
@@ -383,11 +375,26 @@ lazycopyuvm(pde_t* pgdir, uint sz){
     if (!(*pte & PTE_P))
       panic("lazycopyuvm: page not present");
     pa = PTE_ADDR(*pte);
-    if ((pb = getbuf(pa)) == 0)
-      panic("missing pagebuf for mapped address");
-    
-    increfct(pa);
+    flags = PTE_FLAGS(*pte);
+    va = (char*) P2V(pa);
+    // this just increases the ref count.
+    if (lazycopy(va) < 2)
+      panic("lazycopyuvm: copy failed.");
+    // make non-writeable in old dir.
+    *pte = *pte & (~PTE_W);
+    if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
+    {
+      goto bad;
+    }
+    pte = walkpgdir(d, (void*)i, 0);
+    // make non-writeable in new dir
+    *pte = *pte & (~PTE_W);
   }
+  return d;
+
+bad:
+  freevm(d);
+  return 0;
 }
 
 
@@ -412,11 +419,11 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    if((mem = getpage()) == 0)
       goto bad;
     memmove(mem, (char*)P2V(pa), PGSIZE);
     if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      kfree(mem);
+      freepage(mem);
       goto bad;
     }
   }
@@ -426,6 +433,7 @@ bad:
   freevm(d);
   return 0;
 }
+
 
 //PAGEBREAK!
 // Map user virtual address to kernel address.
@@ -542,42 +550,24 @@ int munprotect(void *start, int len)
   return 0;
 }
 
+// TODO check if they're trying to write to text-only page.
 // called after user process attempts to write to read-only page
 void cowupdate(void) {
   struct proc *p = myproc();
   uint attempted_access = rcr2();
-  uint pa, vapg;
+  uint va, flags;
   pte_t *pte;
-  struct pagebuf* pb;
-  int refct;
 
-  vapg = PGROUNDDOWN(attempted_access);
-
-  cprintf("proc %s attempted a write at 0x%x, in page 0x%x\n", p->name, attempted_access, vapg);
-  cprintf("eip: 0x%x\n", p->tf->eip);
   pte = walkpgdir(p->pgdir, (void *) attempted_access, 0);
-  // load physical address of offending page
-  pa = PTE_ADDR(*pte);
-  cprintf("corresponding page is at 0x%x\n", pa);
-  if ((pb = getbuf(pa)) == 0)
-    panic("cowupdate: page not in cache");
-  cprintf("refct: %d\n", pb->refcnt);
-  if ((refct = pb->refcnt) == 0)
-    panic("cowupdate: accessing page with zero refs");
-  if ((PTE_FLAGS(*pte) & PTE_P) == 0)
+  flags = PTE_FLAGS(*pte);
+  
+  if ((pte==0) || ((flags & PTE_P) == 0))
     //cow routines should only be called on present pages
     panic("cowpdate: page not present.");
-  if (refct == 1) {
-    // if only one reference, can just flag the page as writeable and retry.
-    setperm(p->pgdir, vapg, vapg+PGSIZE, PTE_P | PTE_U | PTE_W);
-
-  }
-  else{
-    // if two references, make a writeable copy for this process
-    panic("cow");
-
-  }
   
+  // fork the page which lead to the fault, update the directory, and make it writeable.
+  va = (uint) forkpage((char *) P2V(PTE_ADDR(*pte)));
+  *pte = V2P(va) | flags | PTE_W;
 
 }
 
