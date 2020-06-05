@@ -7,6 +7,11 @@
 void showps(struct pstat* ps) {
     int i;
 
+    if ((getpstat(ps)) < 0)
+    {
+        printf(2, "Unable to load ptstat\n");
+        exit();
+    }
     printf(1, "Process stats:\n-----------------\n");
     printf(1, "PID | name | state | size (pages) |  ticks\n---------------\n");
     
@@ -26,6 +31,7 @@ void showps(struct pstat* ps) {
             }
         }
 }
+
 
 int main(int argc, char* argv[]) {
 

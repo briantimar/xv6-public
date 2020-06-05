@@ -53,6 +53,7 @@ struct proc {
   uint ticks;                   // how many times this process has been selected by scheduler.
   uint starttick;              // interrupt at which this process started executing.
   int isthread;                // is this a thread or process?
+  int numtextpage;              // number of text-only pages in the proc's current program
 };
 
 // Process memory is laid out contiguously, low addresses first:

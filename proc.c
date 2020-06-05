@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "pstat.h"
+#include "page.h"
 
 
 struct {
@@ -132,9 +133,6 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  // at this point no procs have been assigned, ok to set up here
-  // init_procselections();
-
   p = allocproc();
   
   initproc = p;
@@ -200,12 +198,14 @@ fork(void)
     return -1;
   }
 
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  // copy on write: children inherit pointers at first
+  if ((np->pgdir = lazycopyuvm(curproc->pgdir, curproc->sz)) == 0) {
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    return -1;
+    return -2;
   }
+
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -227,7 +227,6 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
-
   return pid;
 }
 
@@ -335,7 +334,7 @@ exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
-
+  cprintf("proc %d is exiting\n", curproc->pid);
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -364,6 +363,7 @@ wait(void)
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
+  
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
@@ -394,7 +394,6 @@ wait(void)
       release(&ptable.lock);
       return -1;
     }
-
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
@@ -490,7 +489,6 @@ scheduler(void)
         c->proc = p;
         switchuvm(p);
         p->state = RUNNING;
-
         swtch(&(c->scheduler), p->context);
         switchkvm();
 
@@ -566,7 +564,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+ 
   if(p == 0)
     panic("sleep");
 
@@ -671,7 +669,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("proc %d: state %s name %s ticks %d", p->pid, state, p->name, p->ticks);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -685,6 +683,7 @@ procdump(void)
 void writepstat(struct pstat *ps) {
   int i;
   struct proc * p;
+  ps->pagecount = pagecount();
   acquire(&ptable.lock);
   for (i=0; i<NPROC; i++) {
     p = &ptable.proc[i];
@@ -694,7 +693,7 @@ void writepstat(struct pstat *ps) {
     // minus one for the first virtual page, not mapped
     ps->pages[i] = (p->sz - 1) / PGSIZE;
     safestrcpy(ps->name[i], p->name, 16);
+   
   }
   release(&ptable.lock);
-
 }

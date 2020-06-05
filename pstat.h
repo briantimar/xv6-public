@@ -10,6 +10,7 @@ struct pstat {
     int state[NPROC]; // current state of each process
     char name[NPROC][16]; // process name
     int pages[NPROC]; // number of pages assigned to each process.
+    int pagecount; // total number of pages allocated
 };
 
 #endif // _PSTAT_H_

@@ -77,6 +77,15 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+  case T_PGFLT:
+    // page fault
+    // if a user is attempting to write to read-only page, COW logic needs to take over
+    if ((myproc() != 0) && ( tf->err == 7)){
+      myproc()->tf = tf;
+      cowupdate();
+      return;
+    }
+    break;
 
   //PAGEBREAK: 13
   default:

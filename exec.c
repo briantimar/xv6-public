@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#include "page.h"
 
 int
 exec(char *path, char **argv)
@@ -23,7 +24,9 @@ exec(char *path, char **argv)
   struct proc *curproc = myproc();
   char names[512];
   uint textaddr = 0;
-  uint textsz;
+  uint textsz = 0;
+
+  cprintf("Entering exec for prog %s\n", path);
 
   begin_op();
 
@@ -130,12 +133,15 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
+
+
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
+  curproc->numtextpage = numtextpage;
   
   // start the clock ticks fresh for user program
   curproc->ticks = 0;
@@ -144,15 +150,9 @@ exec(char *path, char **argv)
   release(&tickslock);
   switchuvm(curproc);
 
-  // turn on read-only protection for pure text pages
-  if (mprotect((void *)PGSIZE, numtextpage) < 0) {
-    goto bad;
-  }
   // make sure all changes seen by hw
   lcr3(V2P(curproc->pgdir));
-  
   freevm(oldpgdir);
-
   
   return 0;
 
